@@ -172,4 +172,32 @@ contract SimpleBankTest is Test {
     }
 
     // fuzz test
+    function testFuzz_DepositAndWithdraw(uint256 amt) public {
+        uint256 amount = bound(amt, 1, 10 ether);
+        _deposit(alice, amount);
+
+        vm.prank(alice);
+        bank.withdraw(amount);
+
+        assertEq(bank.balances(alice), 0);
+        assertEq(address(bank).balance, 0);
+        assertEq(alice.balance, amount);
+    }
+
+    function testFuzz_TransferKeepsTotalBalance(uint256 amt, uint256 transferAmt) public {
+        uint256 amount = bound(amt, 1, 10 ether);
+        _deposit(alice, amount);
+
+        uint256 transferAmount = bound(transferAmt, 1, amount);
+        uint256 lastTotal = bank.balances(alice) + bank.balances(bob);
+        assertEq(lastTotal, amount);
+
+        vm.prank(alice);
+        bank.transfer(bob, transferAmount);
+
+        uint256 newTotal = bank.balances(alice) + bank.balances(bob);
+        assertEq(newTotal, lastTotal);
+        assertEq(newTotal, amount);
+        assertEq(address(bank).balance, amount);
+    }
 }
