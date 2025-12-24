@@ -16,7 +16,7 @@ contract SimpleBankTest is Test {
     address internal owner;
     address internal alice = address(0x1);
     address internal bob = address(0x2);
-    
+
     function setUp() public {
         owner = address(this);
         bank = new SimpleBank();
@@ -26,18 +26,18 @@ contract SimpleBankTest is Test {
     function _deposit(address sender, uint256 amount) internal {
         vm.deal(sender, amount);
         vm.prank(sender);
-        bank.deposit{value : amount}();
+        bank.deposit{value: amount}();
     }
 
     function testInitialState() public {
         assertEq(bank.owner(), owner);
     }
-    
+
     // deposit
     function testDepositWorksAndEmitsEvent() public {
         uint256 amount = 1 ether;
         vm.deal(alice, amount);
-        
+
         vm.expectEmit(true, false, false, true, address(bank));
         emit Deposited(alice, amount);
 
@@ -53,20 +53,20 @@ contract SimpleBankTest is Test {
 
         vm.prank(alice);
         vm.expectRevert(ZeroAmount.selector);
-        bank.deposit{value : 0 ether}();
+        bank.deposit{value: 0 ether}();
     }
 
     // withdraw
     function testWithdrawWorksAndEmitsEvent() public {
         uint256 amount = 1 ether;
         _deposit(alice, amount);
-        
+
         assertEq(bank.balances(alice), amount);
         assertEq(address(bank).balance, amount);
 
         vm.expectEmit(true, false, false, true, address(bank));
         emit Withdrawn(alice, amount);
-        
+
         vm.prank(alice);
         bank.withdraw(amount);
 
@@ -77,7 +77,7 @@ contract SimpleBankTest is Test {
 
     function testWithdrawRevertsZeroAmount() public {
         _deposit(alice, 1 ether);
-        
+
         vm.prank(alice);
         vm.expectRevert(ZeroAmount.selector);
         bank.withdraw(0);
@@ -85,20 +85,20 @@ contract SimpleBankTest is Test {
 
     function testWithdrawRevertInsufficientBalance() public {
         _deposit(alice, 1 ether);
-        
+
         vm.prank(alice);
         vm.expectRevert(InsufficientBalance.selector);
         bank.withdraw(2 ether);
     }
-    
+
     // transfer
     function testTransferWorksAndEmitEvent() public {
-        uint amount = 1 ether;
+        uint256 amount = 1 ether;
         _deposit(alice, amount);
 
         vm.expectEmit(true, false, false, true, address(bank));
         emit Transfered(bob, amount);
-        
+
         vm.prank(alice);
         bank.transfer(bob, amount);
 
@@ -109,7 +109,7 @@ contract SimpleBankTest is Test {
 
     function testTransferRevertsZeroAmount() public {
         _deposit(alice, 1 ether);
-        
+
         vm.prank(alice);
         vm.expectRevert(ZeroAmount.selector);
         bank.transfer(bob, 0 ether);
@@ -124,40 +124,40 @@ contract SimpleBankTest is Test {
     }
 
     // owner withdraw
-    receive() external payable{}
-    
+    receive() external payable {}
+
     function testOwnerWithdrawWorksAndEmitsEvent() public {
         _deposit(alice, 5 ether);
         uint256 amount = 3 ether;
-        
+
         vm.expectEmit(false, false, false, true, address(bank));
         emit OwnerWithdrawn(amount);
 
         uint256 beforeBalance = owner.balance;
         bank.ownerWithdraw(amount);
-        
+
         assertEq(address(bank).balance, 5 ether - amount);
         assertEq(owner.balance, beforeBalance + amount);
     }
 
     function testOwnerWithdrawRevertsOnlyOwner() public {
         _deposit(alice, 5 ether);
-        
+
         vm.prank(alice);
         vm.expectRevert(OnlyOwner.selector);
         bank.ownerWithdraw(5 ether);
     }
-    
+
     function testOwnerwithdrawRevertsZeroAmount() public {
         _deposit(alice, 1 ether);
-        
+
         vm.expectRevert(ZeroAmount.selector);
         bank.ownerWithdraw(0 ether);
     }
 
     function testOwnerWithdrawRevertsInsufficientBalance() public {
         _deposit(alice, 1 ether);
-        
+
         vm.expectRevert(InsufficientBalance.selector);
         bank.ownerWithdraw(2 ether);
     }
@@ -166,11 +166,10 @@ contract SimpleBankTest is Test {
     function testBankBalance() public {
         _deposit(alice, 1 ether);
         _deposit(bob, 2 ether);
-        
+
         assertEq(bank.totalBankBalance(), address(bank).balance);
         assertEq(address(bank).balance, 3 ether);
     }
 
     // fuzz test
-    
 }
