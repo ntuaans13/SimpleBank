@@ -4,6 +4,25 @@ pragma solidity ^0.8.20;
 import "forge-std/Test.sol";
 import "../src/SimpleBank.sol";
 
+contract BadReceiver {
+    SimpleBank public bank;
+
+    constructor(SimpleBank _bank) {
+        bank = _bank;
+    }
+
+    function depositToBank() external payable {
+        bank.deposit{value : msg.value}();
+    }
+
+    function triggerWithdraw(uint256 amount) external {
+        bank.withdraw(amount);
+    }
+    receive() external payable {
+        revert WithdrawFailed();
+    }
+}
+
 contract SimpleBankTest is Test {
     SimpleBank internal bank;
 
@@ -82,12 +101,27 @@ contract SimpleBankTest is Test {
         bank.withdraw(0);
     }
 
-    function testWithdrawRevertInsufficientBalance() public {
+    function testWithdrawRevertsInsufficientBalance() public {
         _deposit(alice, 1 ether);
 
         vm.prank(alice);
         vm.expectRevert(InsufficientBalance.selector);
         bank.withdraw(2 ether);
+    }
+
+    function testWithdrawRevertsWithdrawFailed() public {
+        BadReceiver badReceiver = new BadReceiver(bank);
+        
+        vm.deal(address(badReceiver), 1 ether);
+        vm.prank(address(badReceiver));
+        badReceiver.depositToBank{value : 1 ether}();
+        
+        assertEq(bank.balances(address(badReceiver)), 1 ether);
+        assertEq(address(bank).balance, 1 ether);
+
+        vm.prank(address(badReceiver));
+        vm.expectRevert(WithdrawFailed.selector);
+        badReceiver.triggerWithdraw(1 ether);
     }
 
     // transfer
