@@ -6,19 +6,23 @@ import "../src/SimpleBank.sol";
 
 contract SimpleBankTest is Test {
     SimpleBank internal bank;
-
-    event Deposited(address indexed user, uint256 amount);
-    event Withdrawn(address indexed user, uint256 amount);
-    event OwnerWithdrawn(uint256 amount);
-    event Transfered(address indexed to, uint256 amount);
-
+    address[] internal actors;
     address internal owner;
-    address internal alice = address(0x1);
-    address internal bob = address(0x2);
+    uint256 internal ownerWithdrawn;
+
 
     function setUp() public {
         owner = address(this);
         bank = new SimpleBank();
+        
+        ownerWithdrawn = 0;
+        actors = new address[](3);
+        for(uint256 i = 0; i < 3; ) {
+            actors[i] = address(uint160(0x1 + i));
+            unchecked {
+                ++i;
+            }
+        }
     }
 
     //helper
@@ -28,7 +32,71 @@ contract SimpleBankTest is Test {
         bank.deposit{value: amount}();
     }
 
-    function testInitialState() public {
-        assertEq(bank.owner(), owner);
+    receive() external payable {}
+
+    function _randomScenario(uint256 seed) internal {
+        uint256 numActors = actors.length;
+
+        for (uint256 i = 0; i < numActors; ) {
+            address user = actors[i];
+            uint256 action = uint256(keccak256(abi.encode(seed, i, "action"))) % 4;
+
+            if (action == 0) {
+                uint256 amount = (uint256(keccak256(abi.encode(seed, i, "deposit"))) % 1 ether) + 1;
+                _deposit(user, amount);
+            } else if (action == 1) {
+                uint256 bal = bank.balances(user);
+                if (bal > 0) {
+                    uint256 amount = (uint256(keccak256(abi.encode(seed, i, "withdraw"))) % bal) + 1;
+
+                    vm.prank(user);
+                    bank.withdraw(amount);
+                }
+            } else if (action == 2) {
+                uint256 bal = bank.balances(user);
+                if (bal > 0) {
+                    address to = actors[(i + 1) % numActors]; 
+                    uint256 amount = (uint256(keccak256(abi.encode(seed, i, "transfer"))) % bal) + 1;
+
+                    vm.prank(user);
+                    bank.transfer(to, amount);
+                }
+            } else {
+                uint256 bankBal = address(bank).balance;
+                if (bankBal > 0) {
+                    uint256 amount = (uint256(keccak256(abi.encode(seed, i, "owner"))) % bankBal) + 1;
+                    uint256 before = address(bank).balance;
+
+                    vm.prank(owner);
+                    bank.ownerWithdraw(amount);
+
+                    ownerWithdrawn += amount;
+                    assertEq(before - amount, address(bank).balance);
+                }
+            }
+
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    function _sumActorBalances() internal view returns (uint256 sum) {
+        uint256 len = actors.length;
+        for (uint256 i = 0; i < len; ) {
+            sum += bank.balances(actors[i]);
+            unchecked {
+                ++i;
+            }
+        }
+    }
+
+    function testInvariant_BankSolvent(uint256 seed) public {
+        _randomScenario(seed);
+
+        uint256 sumBalances = _sumActorBalances();
+        uint256 availableValue = address(bank).balance + ownerWithdrawn;
+
+        assertGe(availableValue, sumBalances);
     }
 }
